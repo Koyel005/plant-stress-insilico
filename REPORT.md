@@ -404,3 +404,4 @@ plant-stress-insilico/
 - Hagberg AA, Schult DA, Swart PJ (2008). Exploring network structure, dynamics, and function using NetworkX. *Proc. SciPy 2008*.
 - GEO accession GSE119382 (NCBI Gene Expression Omnibus).
 - Public reanalysis counts: github.com/YuntongMeng/arabidopsis-drought-rnaseq.
+- Fàbregas N, et al. (2018). Overexpression of the vascular brassinosteroid receptor BRL3 confers drought resistance without penalizing plant growth. Nature Communications 9:4680.
