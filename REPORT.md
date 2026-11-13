@@ -1,132 +1,111 @@
-# Transcriptomic Reanalysis of Drought Response in *Arabidopsis thaliana* Roots (GEO: GSE119382)
+# Transcriptomic Reanalysis of the Drought Response in *Arabidopsis thaliana* Roots (GEO: GSE119382)
 
-**Differential expression with PyDESeq2 and protein-interaction network analysis with STRING and NetworkX**
+**Differential expression analysis with PyDESeq2 and protein-interaction network analysis with STRING and NetworkX**
 
-- **Author:** Koyel Pandey, BSc (Biotechnology, Biochemistry, Genetics), REVA University, Bengaluru
-- **Type:** Independent computational mini-project (reanalysis of public data)
-- **Date of final re-run:** 13 November 2026
-- **Code and data:** this repository (`src/`, `data/`, `results/`, `figures/`)
-
----
-
-## 0. Project at a glance
-
-- **Question:** which genes change in *Arabidopsis* roots under drought, and which of them look most "central" in a protein-interaction network?
-- **Data:** public RNA-seq, GEO GSE119382, wild-type roots, 3 drought vs 3 watered samples
-- **Method:** PyDESeq2 (DESeq2 model in Python) → STRING network → NetworkX centrality
-- **Main result:** **908 genes up, 578 down** (adjusted p < 0.05, |log2FC| ≥ 1) from 22,399 genes tested
-- **Cross-check:** the public reanalysis I took the counts from reports 904 up and 576 down, so the two agree to within 1%
-- **Sanity check:** known drought genes come out strongly up (RD29A +2.94, RD29B +3.73, LTI30 +2.08, COR47 +1.28, RD22 +3.06)
-- **Network:** top 500 up genes → 774 interactions among 333 genes; P5CSA (proline synthesis) has the highest betweenness (0.17)
-- **Honest scope:** this is a **reanalysis of someone else's experiment, starting from someone else's count table**. The sequencing, read alignment and counting are not my work. Everything from the count table onwards is.
-
-### 0.1 What I did and what I used (say this before anyone asks)
-
-| Step | Who did it |
-| --- | --- |
-| Growing plants, drought treatment, RNA extraction, sequencing | The original authors of GSE119382 |
-| Aligning reads and making the raw count table | A public third-party reanalysis (github.com/YuntongMeng/arabidopsis-drought-rnaseq) |
-| Selecting the 6 wild-type samples, filtering, running PyDESeq2, setting thresholds | **Me** |
-| Comparing my gene counts with the public reanalysis | **Me** |
-| Checking known drought genes as a sanity test | **Me** |
-| STRING network, hub ranking, interpretation | **Me** |
-| Wet-lab validation (qPCR), GO enrichment, promoter-motif analysis | **Not done** |
+**Author:** Koyel Pandey, B.Sc. (Biotechnology, Biochemistry, Genetics), REVA University, Bengaluru, India
+**Project type:** Independent computational mini-project (secondary analysis of public data)
+**Analysis period:** November 2026
 
 ---
 
-## 1. Background and rationale
+## Abstract
 
-### 1.1 Why drought and why *Arabidopsis*
+Drought is a major abiotic stress limiting plant growth and crop yield. This project reanalysed a public root RNA-seq dataset (GEO: GSE119382) to identify genes whose expression changes in wild-type *Arabidopsis thaliana* roots after five days of water withdrawal, and to examine how the most strongly upregulated genes are connected in a protein-interaction network.
 
-- **Drought** is one of the main abiotic stresses limiting crop yield, so understanding which genes respond to it is a standard goal in plant biology.
-- ***Arabidopsis thaliana*** is the reference model plant: small genome, the best-annotated plant genome, and large public datasets. That makes it the right place to *practise* a transcriptomics workflow where results can be checked against decades of literature.
-- **Roots** are the first organ to sense soil water loss, so root transcriptomes are a natural place to look for early drought responses.
+Raw gene counts for the six wild-type samples (three drought, three watered) were obtained from a public reanalysis of the dataset. After filtering, 22,399 genes were tested with PyDESeq2, an implementation of the DESeq2 negative binomial model. Using adjusted p < 0.05 and |log2 fold change| ≥ 1, 908 genes were upregulated and 578 downregulated under drought. These numbers agree to within 1% with the published reanalysis (904 and 576). Canonical drought-responsive genes, including *RD29A*, *RD29B*, *LTI30*, *COR47* and *RD22*, were strongly induced, and sample separation by treatment was confirmed by principal component analysis.
 
-### 1.2 Why I did this project
+The 500 most significantly upregulated genes were mapped in STRING (v12.5; 774 interactions among 333 genes). Network analysis identified LEA proteins, RD29A and RD29B as the most connected genes and the proline biosynthesis gene *P5CSA* as the gene with the highest betweenness centrality (0.17). Only 9.0% of the interactions are supported by experimental evidence, so the hub genes are interpreted as candidates for follow-up and not as validated regulators.
 
-- At IISc (Plasma Applications Lab) I work on how plasma seed treatment affects okra and roselle, which is **phenotype-level** work (shoot growth, antioxidant assays).
-- I wanted to learn how to ask the **molecular** question: *what changes inside a plant under stress, not only how it looks?*
-- A public dataset lets me learn the full workflow (counts → statistics → biology) without needing sequencing, and lets me test my method against a published answer.
-- Plasma treatment is thought to act partly through reactive oxygen species (ROS) signalling, and drought also triggers ROS and stress-response pathways. I treat that as the **motivation** for learning stress transcriptomics, **not** as a result: this project contains no plasma data.
+---
+
+## 1. Introduction
+
+### 1.1 Background
+
+- Drought is one of the main abiotic stresses affecting plant growth and crop productivity, and understanding the genes involved is a central goal of plant stress biology.
+- *Arabidopsis thaliana* is the reference model plant. It has a small, well-annotated genome and extensive public datasets, which makes it suitable for developing and testing a transcriptomics workflow against established literature.
+- Roots are the first organ to perceive soil water deficit, so root transcriptomes are informative for early drought responses.
+- RNA sequencing (RNA-seq) measures transcript abundance genome-wide. Differential expression analysis compares abundance between conditions to identify genes that respond to a treatment.
+
+### 1.2 Rationale
+
+- The author's research experience is in phenotype-level plant stress work (plasma seed treatment of okra and roselle, with growth and antioxidant measurements).
+- This project was undertaken to build skills in the molecular and computational side of stress biology: processing count data, applying appropriate statistics, and interpreting results in a network context.
+- A public dataset allows the complete workflow to be practised and benchmarked against a published analysis. No plasma-treatment data are used or claimed in this project.
 
 ### 1.3 Aims
 
-- **Aim 1:** identify genes differentially expressed between drought and watered wild-type roots
-- **Aim 2:** check that my pipeline is trustworthy by (a) comparing with a published reanalysis and (b) confirming known drought genes
-- **Aim 3:** build a protein-interaction network of the most significant upregulated genes and rank genes by connectivity and centrality
-- **Aim 4:** state clearly what these results can and cannot show
+1. Identify genes differentially expressed between drought and watered wild-type *A. thaliana* roots.
+2. Assess the reliability of the workflow by comparison with a published reanalysis and with known drought-responsive genes.
+3. Construct a protein-interaction network of the most significant upregulated genes and rank genes by connectivity and centrality.
+4. State the limits of what the results can support.
 
 ---
 
 ## 2. Data
 
-- **Accession:** GEO GSE119382 (*Arabidopsis thaliana*, root RNA-seq, drought vs watered)
-- **Count table used:** `data/counts_all_11samples_raw.tsv`, raw (un-normalised) integer counts for **32,833 genes × 11 samples**, taken from a public reanalysis repository that processed GSE119382 from the SRA reads
-- **Samples in the file:**
-  - Wild type (WT): Drought Rep1–3, Watered Rep1–3 (**the 6 samples I used**)
-  - BRL3 line (a transgenic line with extra copies of the brassinosteroid receptor BRL3): Drought Rep1–3, Watered Rep1 and Rep3 (5 samples, **not used**)
-- **Why only WT:** the question is the drought response of normal plants. Mixing in the transgenic line would confound drought with genotype.
-- **Gene IDs:** TAIR AGI codes (e.g. AT5G52310)
-- **Design:** 3 vs 3 per condition (the sample column names indicate replicates; see Limitations)
-
-> **To confirm on the GEO page before presenting:** the exact study title, the tissue/time-point wording, and that the six samples are biological (not technical) replicates.
+- **Accession:** GEO GSE119382
+- **Study title:** "Transcriptomic study of Arabidopsis roots overexpressing the brassinosteroid receptor BRL3, in control conditions and under severe drought"
+- **Source publication:** Fàbregas et al. (2018), *Nature Communications* 9:4680
+- **Organism and tissue:** *Arabidopsis thaliana*, roots
+- **Treatment:** control (properly watered) versus five days of drought (water withheld)
+- **Replication:** three biological replicates per genotype and condition, as stated in the study description
+- **Genotypes:** wild type (WT) and a BRL3-overexpressing line (35S:BRL3-GFP)
+- **Count table:** `data/counts_all_11samples_raw.tsv`, raw integer counts for 32,833 genes across 11 samples, taken from a public third-party reanalysis of this dataset (github.com/YuntongMeng/arabidopsis-drought-rnaseq). Gene identifiers are TAIR AGI codes (for example AT5G52310).
+- **Samples analysed:** the six wild-type samples (Drought Rep1-3, Watered Rep1-3).
+- **Samples not analysed:** the BRL3-overexpressing line (five samples; one watered replicate is absent from the table). The question addressed here is the drought response of wild-type plants, and including the transgenic genotype would confound drought with genotype.
 
 ---
 
 ## 3. Methods
 
-![Workflow](figures/fig0_workflow.png)
+![Analysis workflow](figures/fig0_workflow.png)
+
+*Figure 1. Analysis workflow.*
 
 ### 3.1 Software
 
 | Tool | Purpose |
 | --- | --- |
-| Python 3 | Everything |
-| PyDESeq2 0.5.4 | Differential expression (Python re-implementation of DESeq2) |
+| Python 3 | Analysis environment |
+| PyDESeq2 0.5.4 | Differential expression (Python implementation of DESeq2) |
 | pandas, NumPy | Data handling |
-| scikit-learn | PCA |
+| scikit-learn | Principal component analysis |
 | matplotlib | Figures |
-| STRING (web API, species 3702) | Protein-interaction data |
-| NetworkX | Graph construction and centrality |
+| STRING v12.5 (web interface) | Protein-interaction data |
+| NetworkX | Graph construction and centrality measures |
 
-### 3.2 Step 1: data preparation
+### 3.2 Data preparation
 
-- Read the raw count table and kept the **6 WT columns**
-- Labelled samples `Drought` or `Watered` from the column names
-- **Filter:** removed genes with a total count below 10 across the 6 samples → **22,399 of 32,833 genes kept**
-- **Why filter:** genes with almost no reads carry no statistical information and only add noise and multiple-testing burden
+- Raw counts for the six wild-type samples were loaded and labelled by condition (Drought or Watered).
+- Genes with a total count below 10 across the six samples were removed, leaving **22,399 of 32,833 genes**. Genes with almost no reads carry little statistical information and increase the multiple-testing burden.
 
-### 3.3 Step 2: differential expression (PyDESeq2)
+### 3.3 Differential expression
 
-- **Input is raw counts**, because the DESeq2 model does its own normalisation. Using already-normalised values (TPM/FPKM) would be wrong.
-- **Model:** negative binomial generalised linear model, design `~ condition`, contrast Drought vs Watered
-  - **Why negative binomial:** RNA-seq counts are discrete and more variable than a Poisson model allows (overdispersion)
-- **Normalisation:** median-of-ratios size factors, which correct for different sequencing depth between samples
-- **Dispersion:** estimated per gene, then shrunk towards a fitted trend (this is what makes 3 replicates workable)
-- **Test:** Wald test per gene
-- **Multiple testing:** Benjamini-Hochberg false discovery rate, reported as *adjusted p* (padj)
-- **Calling differentially expressed genes (DEGs):**
-  - **Up:** padj < 0.05 **and** log2 fold change ≥ +1 (at least 2-fold higher in drought)
-  - **Down:** padj < 0.05 **and** log2 fold change ≤ −1
-  - **Why both thresholds:** padj says the change is unlikely to be noise; the fold-change cut-off says it is big enough to matter biologically
-- **Genes with a result:** 21,527 genes had a valid adjusted p-value (PyDESeq2 returns NA for genes removed by its outlier and independent-filtering rules)
+- **Input:** raw (un-normalised) counts, as required by the DESeq2 model, which performs its own normalisation.
+- **Model:** negative binomial generalised linear model with design `~ condition`, contrast Drought versus Watered. The negative binomial distribution accounts for the overdispersion typical of RNA-seq counts.
+- **Normalisation:** median-of-ratios size factors correct for differences in sequencing depth.
+- **Dispersion:** estimated per gene and shrunk towards a fitted mean-dispersion trend, which stabilises estimates with few replicates.
+- **Testing:** Wald test per gene, with Benjamini-Hochberg correction for multiple testing (adjusted p, "padj").
+- **Significance thresholds:**
+  - Upregulated: padj < 0.05 and log2 fold change ≥ +1
+  - Downregulated: padj < 0.05 and log2 fold change ≤ -1
+- 21,527 genes received a valid adjusted p-value (PyDESeq2 returns NA for genes excluded by its outlier and independent-filtering rules).
 
-### 3.4 Step 3: quality checks
+### 3.4 Quality and plausibility checks
 
-- **PCA** of log2 normalised counts (500 most variable genes) to see whether samples separate by condition
-- **Cross-check with the public reanalysis:** compared my number of up and down genes with the numbers that reanalysis reports for the same six samples
-- **Known-gene check:** looked up canonical drought-responsive genes (RD29A, RD29B, LTI30, COR47, RD22, P5CS1) and two genes I expected *not* to change at this time point (ATAF1, DREB2A)
+- Principal component analysis (PCA) of log2 normalised counts (500 most variable genes) to assess whether samples separate by condition.
+- Comparison of the numbers of upregulated and downregulated genes with those reported by the public reanalysis for the same six samples.
+- Inspection of canonical drought-responsive genes (*RD29A*, *RD29B*, *LTI30*, *COR47*, *RD22*, *P5CS1*) and of two transcription factors not expected to show a strong response in roots at this time point (*ATAF1*, *DREB2A*).
 
-### 3.5 Step 4: interaction network (STRING + NetworkX)
+### 3.5 Protein-interaction network
 
-- **Genes used:** the **500 most significantly upregulated genes**, ranked by adjusted p-value (*not* by fold change)
-- **How it was run:** I exported the gene list (`results/up_gene_ids_top500_for_STRING.txt`) and pasted it into the **STRING website** (string-db.org → Multiple proteins → *Arabidopsis thaliana*), then downloaded the network as a TSV (`string_interactions_495_nodes.tsv`). The hub analysis was then run in NetworkX on that exported file.
-- **STRING:** *A. thaliana* (taxon 3702), minimum combined confidence **0.4** (medium)
-- **Graph:** each gene is a node, each STRING interaction an edge (duplicates removed)
-- **Metrics (NetworkX):**
-  - **Degree:** number of connections of a gene
-  - **Betweenness centrality:** how often a gene lies on the shortest path between two other genes (a "bridge" score)
-- **Evidence audit:** counted which evidence types (experiments, text-mining, co-expression, etc.) support the edges, using the evidence columns in the STRING export
+- **Gene set:** the 500 most significantly upregulated genes, ranked by adjusted p-value (`results/up_gene_ids_top500_for_STRING.txt`). Ranking by adjusted p-value favours statistically reliable changes over large but noisy fold changes at low expression.
+- **STRING:** v12.5, *A. thaliana* (taxon 3702), minimum combined confidence 0.4 (medium), accessed 10 November 2026. The gene list was submitted through the STRING website (Multiple proteins) and the network was exported as a TSV file (`data/string_interactions.tsv`).
+- **Graph analysis (NetworkX):** genes are nodes and interactions are undirected edges. Two measures were computed:
+  - **Degree:** the number of connections of a gene.
+  - **Betweenness centrality:** the fraction of shortest paths between other gene pairs that pass through a gene, indicating a bridging role between network regions.
+- **Evidence audit:** the evidence channels recorded in the STRING export (experiments, text-mining, co-expression, database annotation, homology, gene neighbourhood) were tabulated across all edges.
 
 ---
 
@@ -134,31 +113,33 @@
 
 ### 4.1 Differential expression
 
-- **Genes tested:** 22,399 after filtering; 21,527 with a valid padj
-- **Upregulated in drought:** **908** (log2FC from +1.0 up to +9.43, median +1.47)
-- **Downregulated in drought:** **578** (log2FC from −1.0 down to −7.64, median −1.59)
-- **Not significant:** 20,041
+| Quantity | Value |
+| --- | --- |
+| Genes tested (after filtering) | 22,399 |
+| Genes with valid adjusted p-value | 21,527 |
+| Upregulated in drought | **908** (log2FC +1.0 to +9.43; median +1.47) |
+| Downregulated in drought | **578** (log2FC -1.0 to -7.64; median -1.59) |
+| Not significant | 20,041 |
 
 ![Volcano plot](figures/fig1_volcano.png)
 
-*Figure 1. Volcano plot. Red = up, blue = down, grey = not significant. Dashed lines mark padj = 0.05 and |log2FC| = 1. Known drought genes are labelled.*
+*Figure 2. Volcano plot. Red: upregulated; blue: downregulated; grey: not significant. Dashed lines mark padj = 0.05 and |log2FC| = 1. Selected drought-responsive genes are labelled.*
 
 ![MA plot](figures/fig2_MA.png)
 
-*Figure 2. MA plot. The bulk of genes sits around zero, as expected after normalisation. The largest fold changes occur at low expression, where estimates are noisiest, which is one reason I rank by adjusted p-value and not by fold change.*
+*Figure 3. MA plot. Most genes lie around zero after normalisation. The largest fold changes occur at low expression, where estimates are least precise.*
 
 ### 4.2 Agreement with the public reanalysis
 
-| | Up | Down |
+| | Upregulated | Downregulated |
 | --- | --- | --- |
-| **My PyDESeq2 run** | **908** | **578** |
-| Public reanalysis (same 6 samples) | 904 | 576 |
+| This analysis (PyDESeq2) | 908 | 578 |
+| Public reanalysis (same six samples) | 904 | 576 |
 | Difference | 4 (0.4%) | 2 (0.3%) |
 
-- **What this shows:** my implementation behaves like the published analysis, so my pipeline is not producing nonsense
-- **What it does not show:** independent validation. Both analyses use the same counts and the same statistical model family, so agreement is a **consistency check**, not proof that the biology is right
+The close agreement indicates that the implementation behaves consistently with the published analysis. Because both analyses use the same count table and the same model family, this is a consistency check and not an independent validation.
 
-### 4.3 Known drought genes (sanity check)
+### 4.3 Canonical drought-responsive genes
 
 | Gene | AGI ID | log2FC | padj | Call |
 | --- | --- | --- | --- | --- |
@@ -169,31 +150,28 @@
 | RD22 | AT5G25610 | +3.06 | 1.2e-40 | Up |
 | P5CS1 (P5CSA) | AT2G39800 | +1.77 | 2.3e-12 | Up |
 | ATAF1 | AT1G01720 | +0.10 | 0.85 | Not significant |
-| DREB2A | AT5G05410 | −0.72 | 0.015 | Not significant (below the 2-fold cut-off) |
+| DREB2A | AT5G05410 | -0.72 | 0.015 | Not significant (below the 2-fold cut-off) |
 
 ![Known markers](figures/fig5_known_markers.png)
 
-*Figure 3. Log2 fold change of canonical drought-responsive genes.*
+*Figure 4. log2 fold change of canonical drought-responsive genes.*
 
-- **Interpretation:** the classic ABA- and dehydration-responsive genes are strongly induced, as the literature predicts
-- **ATAF1 and DREB2A did not pass the thresholds in roots.** This is plausible, not an error: some stress transcription factors respond transiently or in a tissue- or time-specific way, and this dataset is one tissue at one time point. I report it rather than hide it.
+Classic abscisic acid (ABA)- and dehydration-responsive genes were strongly induced, as expected from the literature. *ATAF1* and *DREB2A* did not meet the thresholds in roots in this dataset. Some stress-related transcription factors respond transiently or in a tissue- or time-specific manner; this was not investigated further.
 
-### 4.4 Sample quality (PCA)
+### 4.4 Sample relationships
 
 ![PCA](figures/fig3_PCA.png)
 
-*Figure 4. PCA. PC1 (62.2% of variance) separates drought from watered samples; PC2 (24.4%) mostly reflects replicate-to-replicate spread.*
+*Figure 5. Principal component analysis of the six samples (500 most variable genes).*
 
-- **Good:** the main axis of variation is the treatment, so the comparison is meaningful
-- **Caution:** the watered replicates are spread apart on PC2 (Rep3 and Rep2 are far from each other), which is the kind of variability that 3 replicates cannot average out
+- PC1 (62.2% of variance) separates drought from watered samples, so treatment is the dominant source of variation.
+- PC2 (24.4%) mainly reflects variation among replicates; the watered replicates are spread apart, illustrating the variability that three replicates cannot fully average out.
 
-### 4.5 Top differentially expressed genes
+### 4.5 Most significant genes
 
 ![Heatmap](figures/fig4_heatmap.png)
 
-*Figure 5. Heatmap of the 40 most significant up (top) and 40 most significant down (bottom) genes, z-scored per gene. Replicates within a condition show a consistent pattern. These genes were selected for being significant, so this looks cleaner than the dataset as a whole.*
-
-Most significant upregulated genes (full table: `results/deg_results.csv`):
+*Figure 6. Heatmap of the 40 most significant upregulated (top) and 40 most significant downregulated (bottom) genes, z-scored per gene. These genes were selected for significance, so the pattern is cleaner than for the dataset as a whole.*
 
 | Gene (AGI) | log2FC | padj |
 | --- | --- | --- |
@@ -203,21 +181,18 @@ Most significant upregulated genes (full table: `results/deg_results.csv`):
 | AT4G33550 | +4.21 | 4.6e-79 |
 | AT5G59320 | +3.86 | 1.9e-60 |
 
+The full table is provided in `results/deg_results.csv`.
+
 ### 4.6 Protein-interaction network
 
-> Source: my STRING web export (`data/string_interactions.tsv`), analysed with `src/network_hubs.py` and `src/network_figures.py`. All numbers below are reproducible from that file.
-
-- **Input:** top 500 upregulated genes by padj
-- **Matched in STRING:** 495 of 500
-- **Network size:** **774 unique interactions among 333 genes** (the other 162 matched genes have no link at confidence ≥ 0.4)
-- **Connectivity:** one large connected component of **292 genes and 747 edges**; the remaining 27 edges are in small separate groups
-- **Edge confidence:** combined score from 0.40 to 0.999, median 0.54 (so most edges are medium-confidence)
+- 495 of the 500 submitted genes were matched in STRING.
+- The network contains **774 unique interactions among 333 genes**; the remaining 162 matched genes have no interaction at confidence ≥ 0.4.
+- A single connected component contains 292 genes and 747 edges; the remaining 27 edges form small separate groups.
+- Combined confidence scores range from 0.40 to 0.999 (median 0.54).
 
 ![Network](figures/fig6_network.png)
 
-*Figure 6. Largest connected component. Node size = number of connections; red = top hubs and P5CSA.*
-
-**Top hubs (ranked by degree, then betweenness)**
+*Figure 7. Largest connected component of the network. Node size is proportional to degree; red nodes are the top hubs and P5CSA.*
 
 | Gene | Degree | Betweenness |
 | --- | --- | --- |
@@ -232,158 +207,89 @@ Most significant upregulated genes (full table: `results/deg_results.csv`):
 | SAG113 | 19 | 0.035 |
 | MUD21.2 | 17 | 0.040 |
 
-- **Highest betweenness: P5CSA (0.17)**, a proline biosynthesis gene
-  - **Meaning:** many shortest paths between other genes pass through it, so it links otherwise separate parts of the network
-  - It is not the most connected gene (24 links vs 31 for LEA46), which is the point of using betweenness as well as degree
-- `F4J573_ARATH` is shown by its UniProt-style name because STRING has no gene symbol for it
+*Table 1. Top ten genes by degree. F4J573_ARATH is shown by its UniProt-style name because STRING lists no gene symbol for it.*
 
-**Evidence behind the 774 edges** (an edge can have several types)
+*P5CSA* has the highest betweenness (0.17) despite not having the highest degree, indicating that it lies on many shortest paths between otherwise separate parts of the network.
+
+**Evidence supporting the interactions** (an edge may have several evidence types):
 
 | Evidence type | % of edges |
 | --- | --- |
-| Text-mining | 90.2% |
-| Co-expression | 73.3% |
-| Database annotated | 12.7% |
-| **Experiments** | **9.0%** |
-| Homology | 6.3% |
-| Gene neighbourhood | 5.0% |
+| Text-mining | 90.2 |
+| Co-expression | 73.3 |
+| Database annotation | 12.7 |
+| Experiments | 9.0 |
+| Homology | 6.3 |
+| Gene neighbourhood | 5.0 |
 
-- **Edges whose only listed evidence is text-mining:** 21.6%
+For 21.6% of edges, text-mining is the only listed evidence type.
 
 ![Degree and evidence](figures/fig7_degree_evidence.png)
 
-*Figure 7. Left: most genes have few connections and a few are hubs. Right: evidence types behind the edges.*
-
-- **Why this matters:** a gene that is heavily studied gets mentioned with many other genes in papers, so text-mining edges favour famous genes. Co-expression edges are partly expected here because all 500 genes were selected for rising together in drought.
+*Figure 8. Left: degree distribution. Right: evidence types supporting the 774 interactions.*
 
 ---
 
 ## 5. Discussion
 
-- **The hubs are classic drought genes.** LEA proteins (LEA46, LEA7), RD29A and RD29B are ABA- and dehydration-responsive and are known to protect cells during water loss. Finding them is consistent with known drought biology, which supports the workflow.
-- **LEA proteins** act as protective proteins during desiccation, and **RD29A/B** are standard markers of ABA/dehydration signalling.
-- **P5CSA** encodes the rate-limiting enzyme of proline synthesis. Proline accumulates as an osmoprotectant in drought, so a proline gene that bridges network modules is biologically sensible.
-- **A hub is not a regulator.** In STRING, a hub is a gene with many *recorded or predicted* links. That reflects how well-studied the gene is as much as its role. It does not show that the gene controls the others.
-- **Why the network is a lead-generating tool:** with only 9% experimental edges, the network says "these genes deserve attention", not "these genes drive drought tolerance".
-- **Link to my IISc work:** both plasma treatment and drought are discussed in terms of ROS and stress signalling. A natural next step would be to compare stress-responsive gene sets with transcript data from plasma-treated plants. I have not done this and do not claim it.
+- **Consistency with known biology.** The most connected genes include LEA proteins (LEA46, LEA7, LEA29), RD29A and RD29B, which are ABA- and dehydration-responsive genes associated with protection against cellular water loss. Their prominence is consistent with established drought biology and supports the workflow.
+- **Proline metabolism.** *P5CSA* encodes a key enzyme of proline biosynthesis. Proline accumulates as an osmoprotectant under drought, so a proline-synthesis gene with high betweenness is biologically plausible.
+- **Interpretation of hubs.** In an interaction network, a hub is a gene with many recorded or predicted links. This reflects how extensively a gene has been studied as well as its biological role, and does not demonstrate that the gene regulates its neighbours.
+- **Network as a hypothesis tool.** Because most interactions are predicted (text-mining, co-expression), the network is useful for prioritising candidate genes for follow-up and not for establishing regulatory relationships.
+- **Relation to plant stress research more broadly.** Drought and other stresses engage overlapping responses, including reactive oxygen species signalling. The same workflow could in principle be applied to transcriptomes from other stress or priming treatments. This was not done here.
 
 ---
 
-## 6. Limitations (read these before an interview)
+## 6. Limitations
 
-- **Counts were not generated by me.** I started from a public count table, so read quality control, alignment and counting are outside this project.
-- **n = 3 per group.** DESeq2 handles small n, but estimates of variability are weak and a single odd sample can shift the gene list. The PCA shows this spread.
-- **One tissue, one time point, one study.** The result may not generalise to leaves, other stresses or other time points (ATAF1 and DREB2A not changing is an example).
-- **My validation is only consistency.** Matching a reanalysis of the same data, and recovering known genes, shows the pipeline works. It does not validate any new biological claim.
-- **No wet-lab confirmation.** Candidate genes would need qPCR in independent plants.
-- **STRING is mostly predicted.** Only 9.0% of edges have experimental evidence; 90.2% involve text-mining (21.6% rely on it alone), which favours well-studied genes.
-- **Selection effect in the network:** all 500 genes were chosen for being upregulated, so their co-expression links are partly expected and do not independently show a shared function.
-- **Threshold dependence.** Different padj/fold-change cut-offs give different gene counts.
-- **Not done:** GO/KEGG enrichment, promoter motif analysis (planned as an optional step, never run), comparison between the BRL3 line and wild type.
+- **Source of counts.** The count table was generated by a third party. Read quality control, alignment and counting are outside the scope of this project.
+- **Sample size.** Three replicates per condition limit the precision of variance estimates, and individual samples can influence the gene lists. The PCA illustrates the spread among watered replicates.
+- **Scope of the data.** One tissue (roots), one time point (five days of water withdrawal) and one study. Results may not generalise to other tissues, stresses or time points.
+- **Nature of validation.** Agreement with a reanalysis of the same data and recovery of known genes are consistency checks. They do not provide independent biological validation.
+- **No experimental confirmation.** Candidate genes would require confirmation, for example by qRT-PCR in independent plants.
+- **Reliability of network edges.** Only 9.0% of interactions have experimental evidence, and 90.2% involve text-mining, which favours well-studied genes.
+- **Selection effect.** All 500 network genes were selected because they are upregulated together, so co-expression links are partly expected and do not independently indicate shared function.
+- **Threshold dependence.** The numbers of differentially expressed genes depend on the chosen padj and fold-change thresholds.
+- **Analyses not performed.** Gene Ontology or KEGG enrichment, promoter motif analysis, and comparison with the BRL3-overexpressing genotype.
 
 ---
 
 ## 7. Conclusions
 
-- A DESeq2-based pipeline in Python reproduced a published reanalysis to within 1% (908/578 vs 904/576 DEGs) and recovered canonical drought genes.
-- Drought in wild-type *Arabidopsis* roots changed ~1,486 genes (6.9% of the genes tested), mostly consistent with ABA- and dehydration-response biology.
-- Network analysis highlighted LEA proteins, RD29A/B and the proline gene P5CSA as the most connected or bridging upregulated genes; these are candidates, not validated regulators.
-- The project gave me an end-to-end understanding of RNA-seq statistics and interaction-network analysis that I want to apply to gene expression and genetic variation in human disease.
+- A DESeq2-based Python workflow reproduced a published reanalysis to within 1% (908 up / 578 down compared with 904 / 576) and recovered canonical drought-responsive genes.
+- Drought altered the expression of 1,486 genes (6.9% of genes with a valid adjusted p-value) in wild-type *Arabidopsis* roots, with a profile dominated by ABA- and dehydration-responsive genes.
+- Network analysis highlighted LEA proteins, RD29A/RD29B and the proline-biosynthesis gene *P5CSA* as the most connected or bridging upregulated genes. These are candidates for experimental follow-up and not validated regulators.
 
 ---
 
-## 8. Viva / interview questions and model answers
-
-**Q1. What exactly did you do?**
-- Took a public raw count table for GSE119382, selected 6 wild-type root samples (3 drought, 3 watered), ran differential expression with PyDESeq2, checked it against a published reanalysis and known drought genes, then built a STRING network of the top 500 upregulated genes and ranked them with NetworkX.
-
-**Q2. Did you do the sequencing or alignment?**
-- No. The experiment and the count table are not mine. My work starts at the count table.
-
-**Q3. Why raw counts and not FPKM/TPM?**
-- DESeq2 models raw counts with a negative binomial distribution and normalises internally. Pre-normalised values break its assumptions.
-
-**Q4. What is the negative binomial and why not Poisson?**
-- Poisson assumes variance equals the mean. Real RNA-seq counts vary more between replicates (overdispersion), and the negative binomial adds a dispersion parameter to model that.
-
-**Q5. What are size factors?**
-- Per-sample scaling factors (median of ratios) that correct for sequencing depth so samples are comparable.
-
-**Q6. What is dispersion shrinkage and why does it matter with 3 replicates?**
-- Per-gene variance estimates from 3 samples are noisy, so DESeq2 pulls them towards a trend fitted across all genes. This stabilises the test.
-
-**Q7. What is padj?**
-- A p-value corrected for testing ~22,000 genes at once using Benjamini-Hochberg, controlling the false discovery rate. With padj < 0.05, about 5% of the genes called significant are expected to be false positives.
-
-**Q8. Why did you filter genes with total count < 10?**
-- They have no power to be detected and only add to the multiple-testing burden.
-
-**Q9. Why use both padj and log2FC thresholds?**
-- padj says the change is unlikely to be noise; log2FC ≥ 1 says it is at least 2-fold, which is more likely to matter biologically.
-
-**Q10. How do you know your pipeline worked?**
-- Three consistency checks: 908/578 vs 904/576 in the public reanalysis; known drought genes (RD29A, RD29B, LTI30, COR47, RD22) strongly up; PCA separating conditions on PC1. These show the workflow behaves correctly, not that the biology is independently proven.
-
-**Q11. Why didn't DREB2A or ATAF1 change?**
-- Possible reasons: tissue (roots), timing (transient induction), or the stress severity. I report it as an observation; I did not test the explanations.
-
-**Q12. What does a hub gene mean in your network?**
-- A gene with many STRING links among the upregulated genes. It means "well connected", not "controls the others".
-
-**Q13. What is betweenness and why is P5CSA interesting?**
-- Betweenness counts how many shortest paths between other gene pairs pass through a gene. P5CSA has the highest (0.17), so it bridges modules. It makes proline, a known osmoprotectant, which fits drought biology.
-
-**Q14. Why choose STRING confidence 0.4?**
-- It is STRING's "medium confidence" default. Higher cut-offs give a smaller, more reliable network; lower cut-offs add more noise.
-
-**Q15. How reliable is the network?**
-- Only 9.0% of edges have experimental support. Most come from text-mining and co-expression, which favour well-studied genes. So hubs are leads.
-
-**Q16. Why the top 500 by padj and not by fold change?**
-- padj ranks the most statistically reliable changes. Fold change alone favours low-count genes with noisy large values.
-
-**Q17. What are the biggest weaknesses?**
-- n = 3, counts from a third party, one tissue and time point, no wet-lab confirmation, mostly predicted network edges.
-
-**Q18. What would you do next?**
-- GO/KEGG enrichment; test robustness to thresholds; run qPCR on candidate genes; compare with more drought datasets; extend to human disease expression data.
-
-**Q19. How does this connect to your IISc work?**
-- It is where I learned stress transcriptomics. Both plasma priming and drought involve ROS and stress signalling, so the same tools could later be applied to plasma-treated seeds. I have not done that yet.
-
-**Q20. Can you run it again?**
-- Yes. `python src/deseq2_analysis.py` reproduces 908 up and 578 down from the counts file in this repository.
-
----
-
-## 9. Reproducibility
+## 8. Reproducibility
 
 ```bash
 pip install -r requirements.txt
 python src/deseq2_analysis.py      # 908 up / 578 down -> results/deg_results.csv
-python src/make_figures.py         # figures/fig1-fig5
-python src/make_string_input.py    # writes the top-500 gene list to paste into string-db.org
-# STRING website: Multiple proteins -> Arabidopsis thaliana -> Exports -> TSV, save as data/string_interactions.tsv
-python src/network_hubs.py --edges data/string_interactions.tsv   # -> results/ppi_*.csv
-python src/network_figures.py      # figures/fig6-fig7 and evidence audit
+python src/make_figures.py         # figures 1-5
+python src/make_string_input.py    # top-500 gene list for string-db.org
+# STRING website: Multiple proteins -> Arabidopsis thaliana -> Exports -> TSV, saved as data/string_interactions.tsv
+python src/network_hubs.py --edges data/string_interactions.tsv
+python src/network_figures.py      # network and evidence figures
 ```
-
-### Repository layout
 
 ```
 plant-stress-insilico/
 ├── README.md
 ├── REPORT.md
+├── REPORT.pdf
 ├── requirements.txt
-├── data/counts_all_11samples_raw.tsv      # third-party raw counts (cite source)
-├── data/string_interactions.tsv           # my STRING web export
+├── data/
+│   ├── counts_all_11samples_raw.tsv     # third-party raw counts
+│   └── string_interactions.tsv          # STRING v12.5 export
 ├── src/
 │   ├── deseq2_analysis.py
 │   ├── make_figures.py
 │   ├── make_workflow_fig.py
 │   ├── make_string_input.py
-│   ├── network_figures.py
-│   └── network_hubs.py
+│   ├── network_hubs.py
+│   └── network_figures.py
 ├── results/
 │   ├── deg_results.csv
 │   ├── normalized_counts.csv
@@ -395,13 +301,26 @@ plant-stress-insilico/
 
 ---
 
-## 10. References
+## 9. References
 
-- Love MI, Huber W, Anders S (2014). Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. *Genome Biology* 15:550.
-- Muzellec B, Teleńczuk M, Cabeli V, Andreux M (2023). PyDESeq2: a Python package for bulk RNA-seq differential expression analysis. *Bioinformatics* 39(9):btad547.
-- Benjamini Y, Hochberg Y (1995). Controlling the false discovery rate. *J R Stat Soc B* 57:289-300.
-- Szklarczyk D, et al. The STRING database (use the version you queried; see `results/ppi_edges.csv` date). *Nucleic Acids Research*.
-- Hagberg AA, Schult DA, Swart PJ (2008). Exploring network structure, dynamics, and function using NetworkX. *Proc. SciPy 2008*.
-- GEO accession GSE119382 (NCBI Gene Expression Omnibus).
-- Public reanalysis counts: github.com/YuntongMeng/arabidopsis-drought-rnaseq.
-- Fàbregas N, et al. (2018). Overexpression of the vascular brassinosteroid receptor BRL3 confers drought resistance without penalizing plant growth. Nature Communications 9:4680.
+1. Fàbregas N, et al. (2018). Overexpression of the vascular brassinosteroid receptor BRL3 confers drought resistance without penalizing plant growth. *Nature Communications* 9:4680.
+2. Love MI, Huber W, Anders S (2014). Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. *Genome Biology* 15:550.
+3. Muzellec B, Teleńczuk M, Cabeli V, Andreux M (2023). PyDESeq2: a Python package for bulk RNA-seq differential expression analysis. *Bioinformatics* 39(9):btad547.
+4. Benjamini Y, Hochberg Y (1995). Controlling the false discovery rate: a practical and powerful approach to multiple testing. *Journal of the Royal Statistical Society B* 57:289-300.
+5. STRING database, v12.5 (string-db.org), accessed 10 November 2026.
+6. Hagberg AA, Schult DA, Swart PJ (2008). Exploring network structure, dynamics, and function using NetworkX. *Proceedings of the 7th Python in Science Conference (SciPy 2008)*.
+7. NCBI Gene Expression Omnibus, accession GSE119382.
+8. Public reanalysis count table: github.com/YuntongMeng/arabidopsis-drought-rnaseq.
+
+---
+
+## Appendix A. Scope and contribution
+
+| Stage | Performed by |
+| --- | --- |
+| Plant growth, drought treatment, RNA extraction and sequencing | Original authors of GSE119382 |
+| Read alignment and generation of the raw count table | Public third-party reanalysis |
+| Sample selection, filtering, differential expression, threshold setting | This project |
+| Comparison with the public reanalysis and with known drought genes | This project |
+| STRING network construction, centrality analysis and interpretation | This project |
+| Experimental validation, GO/KEGG enrichment, promoter-motif analysis | Not performed |

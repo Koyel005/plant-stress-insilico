@@ -1,22 +1,23 @@
-# Drought response in *Arabidopsis thaliana* roots: PyDESeq2 + STRING network (GEO: GSE119382)
+# Transcriptomic reanalysis of drought response in *Arabidopsis thaliana* roots (GEO: GSE119382)
 
-Computational reanalysis of public RNA-seq data (wild-type roots, 3 drought vs 3 watered).
+Differential expression (PyDESeq2) and protein-interaction network analysis (STRING, NetworkX) of public RNA-seq data from wild-type roots, 3 drought vs 3 watered samples.
 
-- **Result:** 908 genes up, 578 down (padj < 0.05, |log2FC| >= 1); public reanalysis reports 904 / 576
-- **Known drought genes recovered:** RD29A, RD29B, LTI30, COR47, RD22
-- **Network:** top 500 upregulated genes -> STRING (web export included) -> 774 interactions among 333 genes; P5CSA has the highest betweenness; only 9.0% of edges are experimental
-- **Full write-up:** [REPORT.md](REPORT.md)
+## Key results
+- 908 genes upregulated and 578 downregulated (adjusted p < 0.05, |log2FC| >= 1); a public reanalysis reports 904 / 576
+- Canonical drought genes recovered: RD29A, RD29B, LTI30, COR47, RD22
+- STRING v12.5 network of the top 500 upregulated genes: 774 interactions among 333 genes; P5CSA has the highest betweenness; 9.0% of edges have experimental evidence
 
-## Important note on data
-Raw counts come from a **public third-party reanalysis** (github.com/YuntongMeng/arabidopsis-drought-rnaseq) of GEO GSE119382.
-I did not generate the sequencing data or the count table. My work starts from the count table.
+Full report: [REPORT.md](REPORT.md) (also [REPORT.pdf](REPORT.pdf))
+
+## Data
+Raw counts are from a public third-party reanalysis (github.com/YuntongMeng/arabidopsis-drought-rnaseq) of GEO GSE119382. Sequencing and count generation were not performed in this project.
 
 ## Run
 ```bash
 pip install -r requirements.txt
 python src/deseq2_analysis.py
 python src/make_figures.py
-python src/make_string_input.py   # top-500 list for string-db.org (web export -> data/string_interactions.tsv)
+python src/make_string_input.py    # gene list for string-db.org; export saved as data/string_interactions.tsv
 python src/network_hubs.py --edges data/string_interactions.tsv
 python src/network_figures.py
 ```
